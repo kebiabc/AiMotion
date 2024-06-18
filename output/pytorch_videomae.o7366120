@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/gpfs/workdir/yaoya/aimotion/test_extract.py", line 16, in <module>
+    from model.marlin import Marlin
+  File "/gpfs/workdir/yaoya/aimotion/model/marlin.py", line 16, in <module>
+    from .config import resolve_config, Downloadable
+  File "/gpfs/workdir/yaoya/aimotion/model/config.py", line 5, in <module>
+    from .util import read_yaml, Singleton, NoArgInit
+ModuleNotFoundError: No module named 'model.util'

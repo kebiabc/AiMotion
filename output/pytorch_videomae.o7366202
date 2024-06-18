@@ -1,0 +1,36 @@
+Marlin(
+  (encoder): MarlinEncoder(
+    (patch_embedding): PatchEmbedding3d(
+      (projection): Conv3d(3, 768, kernel_size=(2, 16, 16), stride=(2, 16, 16))
+      (rearrange): Rearrange('b d nt nh nw -> b (nt nh nw) d')
+    )
+    (pos_embedding): SinCosPositionalEmbedding()
+    (norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+    (blocks): ModuleList(
+      (0-11): 12 x Block(
+        (norm1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+        (attn): Attention(
+          (qkv): Linear(in_features=768, out_features=2304, bias=False)
+          (attn_drop): Dropout(p=0.0, inplace=False)
+          (proj): Linear(in_features=768, out_features=768, bias=True)
+          (proj_drop): Dropout(p=0.0, inplace=False)
+        )
+        (norm2): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+        (mlp): MLP(
+          (layers): ModuleList(
+            (0): Linear(
+              (linear): Linear(in_features=768, out_features=3072, bias=True)
+              (activation): GELU(approximate='none')
+            )
+            (1): Linear(
+              (linear): Linear(in_features=3072, out_features=768, bias=True)
+            )
+          )
+        )
+      )
+    )
+  )
+)
+Shape of features_array_1: (4, 768)
+Shape of features_array_2: (4, 768)
+finished
