@@ -148,25 +148,27 @@ class Marlin(Module):
 
         return features
 
-    def _load_video(self, video_path: str, sample_rate: int, stride: int) -> Generator[Tensor, None, None]:
+    def _load_video(self, video_path: str, sample_rate: int, stride: int, mode: str = 'default', start_frame: int = None, end_frame: int = None) -> Generator[Tensor, None, None]:
+        if mode == 'specific_frames':
+            yield from self._load_specific_frames(video_path, start_frame, end_frame)
+        else:
+            yield from self._load_default(video_path, sample_rate, stride)
+
+    def _load_default(self, video_path: str, sample_rate: int, stride: int) -> Generator[Tensor, None, None]:
         probe = ffmpeg.probe(video_path)
         total_frames = int(probe["streams"][0]["nb_frames"])
         if total_frames <= self.clip_frames:
-            video = read_video(video_path, channel_first=True) / 255  # (T, C, H, W)
-            # pad frames to 16
-            v = padding_video(video, self.clip_frames, "same")  # (T, C, H, W)
+            video = self.read_video(video_path, channel_first=True) / 255  # (T, C, H, W)
+            v = self.padding_video(video, self.clip_frames, "same")  # (T, C, H, W)
             assert v.shape[0] == self.clip_frames
             yield v.permute(1, 0, 2, 3).unsqueeze(0).to(self.device)
         elif total_frames <= self.clip_frames * sample_rate:
-            video = read_video(video_path, channel_first=True) / 255  # (T, C, H, W)
-            # use first 16 frames
+            video = self.read_video(video_path, channel_first=True) / 255  # (T, C, H, W)
             if video.shape[0] < self.clip_frames:
-                # double-check the number of frames, see https://github.com/pytorch/vision/issues/2490
-                v = padding_video(video, self.clip_frames, "same")  # (T, C, H, W)
+                v = self.padding_video(video, self.clip_frames, "same")  # (T, C, H, W)
             v = video[:self.clip_frames]
             yield v.permute(1, 0, 2, 3).unsqueeze(0).to(self.device)
         else:
-            # extract features based on sliding window
             cap = cv2.VideoCapture(video_path)
             deq = deque(maxlen=self.clip_frames)
 
@@ -192,6 +194,40 @@ class Marlin(Module):
                     yield v.permute(1, 0, 2, 3).unsqueeze(0).to(self.device)
 
             cap.release()
+
+    def _load_specific_frames(self, video_path: str, start_frame: int, end_frame: int) -> Generator[Tensor, None, None]:
+        if start_frame is None or end_frame is None:
+            raise ValueError("请提供start_frame和end_frame参数")
+
+        probe = ffmpeg.probe(video_path)
+        total_frames = int(probe["streams"][0]["nb_frames"])
+        
+        if start_frame < 0 or end_frame >= total_frames:
+            raise ValueError("指定的帧范围超出了视频的总帧数")
+
+        cap = cv2.VideoCapture(video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        
+        frames = []
+        current_index = start_frame
+        
+        while current_index <= end_frame:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = torch.from_numpy(frame).permute(2, 0, 1) / 255  # (C, H, W)
+            frames.append(frame)
+            current_index += 1
+        
+        cap.release()
+        
+        if len(frames) < self.clip_frames:
+            frames = self.padding_video(torch.stack(frames), self.clip_frames, "same")
+        
+        v = torch.stack(frames)  # (T, C, H, W)
+        yield v.permute(1, 0, 2, 3).unsqueeze(0).to(self.device)
+
 
     @classmethod
     def from_file(cls, model_name: str, path: str) -> "Marlin":
